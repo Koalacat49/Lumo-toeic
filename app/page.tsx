@@ -1,4 +1,44 @@
 "use client";
+/* ───── クイズ問題データ ───── */
+const QUIZ_QUESTIONS: Record<string, Array<{
+  question: string; options: string[]; answer: number; explanation: string; difficulty: string;
+}>> = {
+  vocabulary: [
+    { question: "Please _______ the attached document before the meeting.", options: ["review","reviewed","reviewing","reviewer"], answer: 0, explanation: "命令文なので動詞の原形「review」が正解です。", difficulty: "easy" },
+    { question: "The _______ growth of the industry has attracted many investors.", options: ["rapid","rapidly","rapidity","rapids"], answer: 0, explanation: "名詞「growth」を修飾するには形容詞「rapid」が正解です。", difficulty: "easy" },
+    { question: "We need to _______ a new marketing strategy.", options: ["develop","developed","developing","developer"], answer: 0, explanation: "「need to」の後には動詞の原形が必要なので「develop」が正解です。", difficulty: "easy" },
+  ],
+  grammar: [
+    { question: "She has been working here _______ 2020.", options: ["since","from","during","after"], answer: 0, explanation: "「現在まで続いている」という意味なので「since」が正解です。", difficulty: "easy" },
+    { question: "I _______ to the office every day.", options: ["go","goes","going","went"], answer: 0, explanation: "習慣を表す現在形なので「go」が正解です。", difficulty: "easy" },
+    { question: "The package _______ tomorrow.", options: ["will arrive","arrives","arriving","arrived"], answer: 0, explanation: "未来の予定なので「will arrive」が正解です。", difficulty: "easy" },
+  ],
+  reading: [
+    { question: "Dear Ms. Sato, Thank you for your recent order. Your items have been shipped. Q: このメールの主な目的は何ですか？", options: ["注文を促す","配送状況を知らせる","謝罪する","割引を提案する"], answer: 1, explanation: "「Your items have been shipped」から、配送状況を知らせるメールです。", difficulty: "easy" },
+    { question: "The annual health checkup will take place on March 10th. Please sign up by February 28th. Q: 2月28日までに何をする必要がありますか？", options: ["健診に参加する","診療所に行く","健診に申し込む","報告書を提出する"], answer: 2, explanation: "「Please sign up by February 28th」から、健診への申し込みが必要です。", difficulty: "easy" },
+    { question: "Due to road construction, bus route 45 will be changed starting Monday. Q: バスのルートが変わる理由は？", options: ["悪天候のため","道路工事のため","メンテナンスのため","需要が増えたため"], answer: 1, explanation: "「Due to road construction」から、道路工事がルート変更の理由です。", difficulty: "easy" },
+  ],
+};
+/* ───── クイズヘルパー関数 ───── */
+const getQuestionCategory = (task: string): string => {
+  if (task.includes("単語") || task.includes("語彙")) return "vocabulary";
+  if (task.includes("文法")) return "grammar";
+  if (task.includes("リーディング") || task.includes("読解")) return "reading";
+  const cats = ["vocabulary", "grammar", "reading"];
+  return cats[Math.floor(Math.random() * cats.length)];
+};
+
+const getRandomQuestion = (category: string) => {
+  const list = QUIZ_QUESTIONS[category] || QUIZ_QUESTIONS.vocabulary;
+  return list[Math.floor(Math.random() * list.length)];
+};
+
+const CATEGORY_LABEL: Record<string, string> = {
+  vocabulary: "単語",
+  grammar: "文法",
+  reading: "リーディング",
+};
+
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { db } from "../lib/firebase";
 import { doc, setDoc, getDoc } from "firebase/firestore";
@@ -62,10 +102,17 @@ export default function Home() {
   const [reasons, setReasons] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [lastBadgeId, setLastBadgeId] = useState<number | null>(null);
+  const [shownBadgeIds, setShownBadgeIds] = useState<number[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [expandedTask, setExpandedTask] = useState<number | null>(null);
-
+  
+  /* クイズ用 */
+  const [quizModal, setQuizModal] = useState(false);
+  const [quizTaskIdx, setQuizTaskIdx] = useState<number | null>(null);
+  const [quizQuestion, setQuizQuestion] = useState<{question: string; options: string[]; answer: number; explanation: string; difficulty: string} | null>(null);
+  const [quizCategory, setQuizCategory] = useState<string>("");
+  const [quizSelected, setQuizSelected] = useState<number | null>(null);
+  const [quizShowAnswer, setQuizShowAnswer] = useState(false);
   // ── キャラの道移動 ──
   const pathRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -120,6 +167,16 @@ export default function Home() {
           setSchedule(d.schedule || []);
           setCompleted(d.completed || []);
           setReasons(d.reasons || []);
+          // 獲得済みバッジIDを計算
+          const loadedCompleted = d.completed || [];
+          const loadedSchedule = d.schedule || [];
+          const loadedProgress = loadedSchedule.length > 0 ? Math.round((loadedCompleted.length / loadedSchedule.length) * 100) : 0;
+          const earnedIds = BADGES.filter(b => {
+            if (b.need === -1) return loadedProgress >= 50;
+            if (b.need === -2) return loadedProgress === 100;
+            return loadedCompleted.length >= b.need;
+          }).map(b => b.id);
+          setShownBadgeIds(earnedIds);
         }
       } catch (e) { console.log("load error", e); }
       setDataLoaded(true);
@@ -143,9 +200,9 @@ export default function Home() {
 
   // バッジ獲得チェック＋演出
   useEffect(() => {
-    const newlyEarned = badges.find(b => b.earned && b.id !== lastBadgeId);
+    const newlyEarned = badges.find(b => b.earned && !shownBadgeIds.includes(b.id));
     if (newlyEarned) {
-      setLastBadgeId(newlyEarned.id);
+      setShownBadgeIds(prev => [...prev, newlyEarned.id]);
       // コンフェッティ
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 3000);
@@ -188,9 +245,45 @@ export default function Home() {
   const handleReset = async () => {
     setSchedule([]); setCompleted([]); setReasons([]); setExamDate("");
     setMascotReady(false);
-    setLastBadgeId(null);
+    setShownBadgeIds([]);
     try { await setDoc(doc(db, "users", USER_ID), { examDate: "", schedule: [], completed: [], reasons: [] }); }
     catch (e) { console.log("reset error", e); }
+  };
+  /* ── クイズ機能 ── */
+  const handleOpenQuiz = (idx: number) => {
+    const task = schedule[idx];
+    const category = getQuestionCategory(task);
+    const question = getRandomQuestion(category);
+    setQuizTaskIdx(idx);
+    setQuizCategory(category);
+    setQuizQuestion(question);
+    setQuizSelected(null);
+    setQuizShowAnswer(false);
+    setQuizModal(true);
+  };
+
+  const handleQuizAnswer = () => {
+    if (quizSelected === null || !quizQuestion) return;
+    const isCorrect = quizSelected === quizQuestion.answer;
+    setQuizShowAnswer(true);
+    
+    if (isCorrect && quizTaskIdx !== null) {
+      setTimeout(() => {
+        setCompleted(prev => [...prev, quizTaskIdx]);
+        setQuizModal(false);
+        triggerSpeech();
+        setJumpKey(k => k + 1);
+      }, 1500);
+    }
+  };
+
+  const handleQuizSkip = () => {
+    if (quizTaskIdx !== null) {
+      setCompleted(prev => [...prev, quizTaskIdx]);
+      setQuizModal(false);
+      triggerSpeech();
+      setJumpKey(k => k + 1);
+    }
   };
 
   const triggerSpeech = () => {
@@ -200,14 +293,11 @@ export default function Home() {
     speechTimeout.current = setTimeout(() => setSpeechText(null), 2000);
   };
 
-  const toggleComplete = (i: number) => {
-    const willComplete = !completed.includes(i);
-    if (willComplete) {
-      setJumpKey(k => k + 1);
-      triggerSpeech();
-    }
-    setCompleted(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
-  };
+    const toggleComplete = (i: number) => {
+      if (!completed.includes(i)) {
+        handleOpenQuiz(i);
+      }
+    };
 
   if (!dataLoaded) return <div style={{ textAlign: "center", padding: 80, color: "#666" }}>読み込み中...</div>;
 
@@ -556,6 +646,59 @@ export default function Home() {
           </>
         )}
       </div>
+      {/* クイズモーダル */}
+      {quizModal && quizQuestion && (
+        <div style={{ position:"fixed", top:0, left:0, width:"100%", height:"100%", background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9999 }}>
+          <div style={{ background:"#fff", borderRadius:16, padding:24, maxWidth:500, width:"90%" }}>
+            <div style={{ fontSize:15, marginBottom:16, lineHeight:1.6, color:"#333" }}>
+              {CATEGORY_LABEL[quizCategory]} 問題
+            </div>
+            <div style={{ fontSize:15, marginBottom:16, lineHeight:1.6, color:"#333" }}>
+              {quizQuestion.question}
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:16 }}>
+              {quizQuestion.options.map((opt, idx) => (
+                <button key={idx} onClick={() => setQuizSelected(idx)} disabled={quizShowAnswer} style={{
+                  padding:12, border: quizSelected === idx ? "2px solid #58cc02" : "2px solid #e0e0e0",
+                  borderRadius:8, background: quizShowAnswer ? (idx === quizQuestion.answer ? "#d4f4dd" : quizSelected === idx ? "#ffd4d4" : "#fff") : quizSelected === idx ? "#f0f0f0" : "#fff",
+                  cursor: quizShowAnswer ? "default" : "pointer", textAlign:"left", fontSize:14, color:"#333"
+                }}>
+                  {opt}
+                </button>
+              ))}
+            </div>
+            {quizShowAnswer && (
+              <div style={{ background: quizSelected === quizQuestion.answer ? "#d4f4dd" : "#ffd4d4", padding:12, borderRadius:8, marginBottom:16 }}>
+              <div style={{ fontWeight:700, marginBottom:8, color:"#333" }}>  
+                  {quizSelected === quizQuestion.answer ? "正解！" : "不正解"}
+                </div>
+                <div style={{ fontSize:13, lineHeight:1.5, color:"#333" }}>{quizQuestion.explanation}</div>
+              </div>
+            )}
+            <div style={{ display:"flex", gap:8 }}>
+              {!quizShowAnswer && (
+                <>
+                  <button onClick={handleQuizAnswer} disabled={quizSelected === null} style={{
+                    flex:1, padding:12, background: quizSelected === null ? "#ccc" : "#58cc02", color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor: quizSelected === null ? "default" : "pointer"
+                  }}>
+                    回答する
+                  </button>
+                  <button onClick={handleQuizSkip} style={{ flex:1, padding:12, background:"#888", color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor:"pointer" }}>
+                    スキップ
+                  </button>
+                </>
+              )}
+              {quizShowAnswer && quizSelected !== quizQuestion.answer && (
+                <button onClick={() => { setQuizSelected(null); setQuizShowAnswer(false); const newQ = getRandomQuestion(quizCategory); setQuizQuestion(newQ); }} style={{
+                  flex:1, padding:12, background:"#58cc02", color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor:"pointer"
+                }}>
+                  もう一度挑戦
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
