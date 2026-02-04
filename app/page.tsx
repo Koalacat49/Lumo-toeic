@@ -1,4 +1,68 @@
 "use client";
+/* ───── レベル診断問題データ ───── */
+const DIAGNOSIS_LEVELS = [
+  { name: "300点レベル", questions: [
+    { question: "What ___ your name?", options: ["is","are","am","be"], answer: 0 },
+    { question: "I ___ to school every day.", options: ["go","goes","going","went"], answer: 0 },
+    { question: "This ___ my book.", options: ["is","are","am","be"], answer: 0 },
+    { question: "She ___ a teacher.", options: ["is","are","am","be"], answer: 0 },
+    { question: "They ___ students.", options: ["is","are","am","be"], answer: 1 },
+    { question: "I ___ happy.", options: ["is","are","am","be"], answer: 2 },
+    { question: "We ___ coffee every morning.", options: ["drink","drinks","drinking","drank"], answer: 0 },
+    { question: "He ___ in Tokyo.", options: ["live","lives","living","lived"], answer: 1 },
+    { question: "The cat ___ on the table.", options: ["is","are","am","be"], answer: 0 },
+    { question: "I ___ English.", options: ["study","studies","studying","studied"], answer: 0 },
+  ]},
+  { name: "600点レベル", questions: [
+    { question: "She ___ to the store yesterday.", options: ["go","goes","went","going"], answer: 2 },
+    { question: "I have been ___ this book for a week.", options: ["read","reading","reads","to read"], answer: 1 },
+    { question: "They ___ the project last month.", options: ["finish","finished","finishing","finishes"], answer: 1 },
+    { question: "I ___ my homework already.", options: ["do","did","have done","doing"], answer: 2 },
+    { question: "She ___ in this company since 2020.", options: ["work","works","has worked","working"], answer: 2 },
+    { question: "We ___ to the meeting when it started.", options: ["go","went","were going","gone"], answer: 2 },
+    { question: "He ___ three languages.", options: ["speak","speaks","speaking","spoken"], answer: 1 },
+    { question: "They ___ the report by tomorrow.", options: ["will finish","finish","finished","finishing"], answer: 0 },
+    { question: "I ___ him for five years.", options: ["know","knew","have known","knowing"], answer: 2 },
+    { question: "She was ___ when I called.", options: ["sleep","sleeping","slept","sleeps"], answer: 1 },
+  ]},
+  { name: "800点レベル", questions: [
+    { question: "The report must ___ before Friday.", options: ["submit","be submitted","submitted","submitting"], answer: 1 },
+    { question: "If I ___ rich, I would travel the world.", options: ["am","was","were","be"], answer: 2 },
+    { question: "The meeting ___ postponed due to bad weather.", options: ["is","was","has","have"], answer: 1 },
+    { question: "She suggested that we ___ the plan.", options: ["revise","revised","revising","revises"], answer: 0 },
+    { question: "Having ___ the book, I returned it to the library.", options: ["read","reading","reads","to read"], answer: 0 },
+    { question: "The proposal will be ___ at tomorrow's meeting.", options: ["discuss","discussed","discussing","discusses"], answer: 1 },
+    { question: "It is essential that he ___ on time.", options: ["arrive","arrives","arrived","arriving"], answer: 0 },
+    { question: "___ properly, the machine works perfectly.", options: ["Maintain","Maintained","Maintaining","Maintains"], answer: 1 },
+    { question: "The problem ___ solved yet.", options: ["hasn't been","haven't been","isn't","aren't"], answer: 0 },
+    { question: "She insisted that the work ___ completed immediately.", options: ["be","is","was","been"], answer: 0 },
+  ]},
+  { name: "900点レベル", questions: [
+    { question: "By next year, she ___ her PhD.", options: ["will complete","will have completed","is completing","completes"], answer: 1 },
+    { question: "Had I known earlier, I ___ differently.", options: ["act","acted","would act","would have acted"], answer: 3 },
+    { question: "No sooner had he arrived ___ the meeting started.", options: ["when","than","as","that"], answer: 1 },
+    { question: "Scarcely ___ the door when the phone rang.", options: ["I opened","had I opened","I had opened","did I open"], answer: 1 },
+    { question: "The data ___ analyzed before conclusions can be drawn.", options: ["must be thoroughly","thoroughly must be","must thoroughly be","be must thoroughly"], answer: 0 },
+    { question: "Were it not for your help, we ___ the project.", options: ["couldn't complete","couldn't have completed","can't complete","won't complete"], answer: 1 },
+    { question: "___ the circumstances, the decision was appropriate.", options: ["Give","Given","Giving","Gave"], answer: 1 },
+    { question: "The committee recommended that the policy ___ revised.", options: ["be","is","was","been"], answer: 0 },
+    { question: "Not until the report ___ could we proceed.", options: ["submitted","was submitted","is submitted","submits"], answer: 1 },
+    { question: "The more complex the problem, ___ to solve.", options: ["the harder it is","it is the harder","the harder is it","is it the harder"], answer: 0 },
+  ]},
+];
+const calcUserLevelByScore = (correctCount: number, totalCount: number): { level: string; scoreLabel: string } => {
+  const percentage = (correctCount / totalCount) * 100;
+  if (percentage >= 83) return { level: "advanced", scoreLabel: "約900点以上" };
+  else if (percentage >= 67) return { level: "intermediate", scoreLabel: "約700点" };
+  else if (percentage >= 50) return { level: "intermediate", scoreLabel: "約500点" };
+  else return { level: "beginner", scoreLabel: "約300点" };
+};
+
+const LEVEL_INFO: Record<string, {label: string; color: string; desc: string}> = {
+  beginner: { label: "初級", color: "#FF6B6B", desc: "基礎からしっかり学習しましょう" },
+  intermediate: { label: "中級", color: "#4ECDC4", desc: "着実にレベルアップしています" },
+  advanced: { label: "上級", color: "#FFD93D", desc: "高得点目指して頑張りましょう" },
+};
 /* ───── クイズ問題データ ───── */
 const QUIZ_QUESTIONS: Record<string, Array<{
   question: string; options: string[]; answer: number; explanation: string; difficulty: string;
@@ -211,6 +275,15 @@ export default function Home() {
   const [quizCategory, setQuizCategory] = useState<string>("");
   const [quizSelected, setQuizSelected] = useState<number | null>(null);
   const [quizShowAnswer, setQuizShowAnswer] = useState(false);
+  /* レベル診断用 */
+  const [userLevel, setUserLevel] = useState<string | null>(null);
+  const [diagPhase, setDiagPhase] = useState<"welcome"|"quiz"|"result"|null>(null);
+  const [diagQuestions, setDiagQuestions] = useState<Array<{question: string; options: string[]; answer: number; levelName: string}>>([]);
+  const [diagAnswers, setDiagAnswers] = useState<boolean[]>([]);
+  const [diagCurrentQIdx, setDiagCurrentQIdx] = useState(0);
+  const [diagSelected, setDiagSelected] = useState<number | null>(null);
+  const [diagShowAnswer, setDiagShowAnswer] = useState(false);
+  const [diagResultData, setDiagResultData] = useState<{ level: string; scoreLabel: string } | null>(null);
   // ── キャラの道移動 ──
   const pathRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -281,6 +354,12 @@ export default function Home() {
     };
     loadData();
   }, []);
+  /* 新規ユーザー → 診断 welcome 表示 */
+  useEffect(() => {
+    if (dataLoaded && !userLevel && schedule.length === 0) {
+      setDiagPhase("welcome");
+    }
+  }, [dataLoaded, userLevel, schedule]);
 
   useEffect(() => {
     if (!dataLoaded) return;
@@ -383,6 +462,30 @@ export default function Home() {
       setJumpKey(k => k + 1);
     }
   };
+  /* ── レベル診断 ── */
+  const handleDiagAnswer = () => {
+    if (diagSelected === null) return;
+    const currentQ = diagQuestions[diagCurrentQIdx];
+    const isCorrect = diagSelected === currentQ.answer;
+    setDiagShowAnswer(true);
+    
+    setTimeout(() => {
+      const newAnswers = [...diagAnswers, isCorrect];
+      setDiagAnswers(newAnswers);
+      
+      if (diagCurrentQIdx < diagQuestions.length - 1) {
+        setDiagCurrentQIdx(prev => prev + 1);
+        setDiagSelected(null);
+        setDiagShowAnswer(false);
+      } else {
+        const correctCount = newAnswers.filter(a => a).length;
+        const result = calcUserLevelByScore(correctCount, diagQuestions.length);
+        setUserLevel(result.level);
+        setDiagResultData(result);
+        setDiagPhase("result");
+      }
+    }, 1200);
+  };
 
   const triggerSpeech = () => {
     if (speechTimeout.current) clearTimeout(speechTimeout.current);
@@ -397,7 +500,109 @@ export default function Home() {
       }
     };
 
-  if (!dataLoaded) return <div style={{ textAlign: "center", padding: 80, color: "#666" }}>読み込み中...</div>;
+  // レベル診断画面
+  if (diagPhase === "welcome") {
+    return (
+      <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#667eea,#764ba2)", padding:20, display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <div style={{ background:"#fff", borderRadius:20, padding:32, maxWidth:500, textAlign:"center" }}>
+          <div style={{ fontSize:24, fontWeight:800, marginBottom:16, color:"#333" }}>まず実力チェックをしよう</div>
+          <div style={{ fontSize:15, lineHeight:1.8, color:"#666", marginBottom:24 }}>
+            あなたのレベルに合った学習プランを作成するため、簡単な問題を出します。全8問です。
+          </div>
+          <button onClick={() => {
+            // 各レベルから2問ずつランダム選択
+            const selectedQuestions: Array<{question: string; options: string[]; answer: number; levelName: string}> = [];
+            DIAGNOSIS_LEVELS.forEach(level => {
+              const shuffled = [...level.questions].sort(() => Math.random() - 0.5);
+              const picked = shuffled.slice(0, 2);
+              picked.forEach(q => {
+                selectedQuestions.push({
+                  question: q.question,
+                  options: q.options,
+                  answer: q.answer,
+                  levelName: level.name
+                });
+              });
+            });
+            setDiagQuestions(selectedQuestions);
+            setDiagAnswers([]);
+            setDiagCurrentQIdx(0);
+            setDiagSelected(null);
+            setDiagShowAnswer(false);
+            setDiagPhase("quiz");
+          }} style={{
+            padding:"14px 32px", background:"linear-gradient(135deg,#58cc02,#46a302)", color:"#fff", border:"none", borderRadius:12, fontSize:17, fontWeight:700, cursor:"pointer", boxShadow:"0 4px 0 #3a8500"
+          }}>
+            診断を始める
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (diagPhase === "quiz") {
+    if (diagQuestions.length === 0) return null;
+    const currentQ = diagQuestions[diagCurrentQIdx];
+    const totalQs = diagQuestions.length;
+    const doneQs = diagCurrentQIdx + (diagShowAnswer ? 1 : 0);
+    return (
+      <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#667eea,#764ba2)", padding:20, paddingTop:60 }}>
+        <div style={{ textAlign:"center", marginBottom:20 }}>
+          <div style={{ color:"#fff", fontWeight:700, fontSize:17, marginBottom:8 }}>実力チェック</div>
+          <div style={{ background:"rgba(255,255,255,0.9)", borderRadius:20, padding:20, maxWidth:500, margin:"0 auto" }}>
+            <div style={{ fontSize:14, fontWeight:600, color:"#666", marginBottom:12 }}>
+              問題 {diagCurrentQIdx + 1} / {totalQs}
+            </div>
+            <div style={{ fontSize:15, marginBottom:16, lineHeight:1.6, color:"#333" }}>
+              {currentQ.question}
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:16 }}>
+              {currentQ.options.map((opt, idx) => (
+                <button key={idx} onClick={() => setDiagSelected(idx)} disabled={diagShowAnswer} style={{
+                  padding:12, border: diagSelected === idx ? "2px solid #58cc02" : "2px solid #e0e0e0",
+                  borderRadius:8, background: diagShowAnswer ? (idx === currentQ.answer ? "#d4f4dd" : diagSelected === idx ? "#ffd4d4" : "#fff") : diagSelected === idx ? "#f0f0f0" : "#fff",
+                  cursor: diagShowAnswer ? "default" : "pointer", textAlign:"left", fontSize:14, color:"#333"
+                }}>
+                  {opt}
+                </button>
+              ))}
+            </div>
+            {diagShowAnswer && (
+              <div style={{ background: diagSelected === currentQ.answer ? "#d4f4dd" : "#ffd4d4", padding:12, borderRadius:8, marginBottom:16 }}>
+                <div style={{ fontWeight:700, marginBottom:8, color:"#333" }}>
+                  {diagSelected === currentQ.answer ? "正解" : "不正解"}
+                </div>
+              </div>
+            )}
+            <button onClick={handleDiagAnswer} disabled={diagSelected === null || diagShowAnswer} style={{
+              width:"100%", padding:12, background: (diagSelected === null || diagShowAnswer) ? "#ccc" : "#58cc02", color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor: (diagSelected === null || diagShowAnswer) ? "default" : "pointer"
+            }}>
+              回答する
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (diagPhase === "result" && diagResultData && userLevel) {
+    return (
+      <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#667eea,#764ba2)", padding:20, display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <div style={{ background:"#fff", borderRadius:20, padding:32, maxWidth:500, textAlign:"center" }}>
+          <div style={{ fontSize:24, fontWeight:800, marginBottom:16, color:"#333" }}>診断結果</div>
+          <div style={{ fontSize:28, fontWeight:800, color:LEVEL_INFO[userLevel].color, marginBottom:8 }}>{diagResultData.scoreLabel}</div>
+          <div style={{ fontSize:18, fontWeight:700, color:"#555", marginBottom:8 }}>{LEVEL_INFO[userLevel].label}</div>
+          <div style={{ fontSize:14, color:"#666", marginBottom:24, lineHeight:1.5 }}>{LEVEL_INFO[userLevel].desc}</div>
+          <button onClick={() => setDiagPhase(null)} style={{
+            width:"100%", padding:"14px", background:"linear-gradient(135deg,#58cc02,#46a302)", color:"#fff", border:"none", borderRadius:14, fontSize:17, fontWeight:700, cursor:"pointer", boxShadow:"0 4px 0 #3a8500"
+          }}>
+            冒険を開始
+          </button>
+        </div>
+      </div>
+    );
+  }
+    if (!dataLoaded) return <div style={{ textAlign: "center", padding: 80, color: "#666" }}>読み込み中...</div>;
 
   return (
     <div style={{
