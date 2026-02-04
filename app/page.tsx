@@ -4,11 +4,11 @@ import { db } from "../lib/firebase";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 
 const BADGES = [
-  { id: 1, name: "最初の一歩", icon: "🚶", need: 1 },
-  { id: 2, name: "5タスク完了", icon: "⭐", need: 5 },
-  { id: 3, name: "10タスク完了", icon: "🔥", need: 10 },
-  { id: 4, name: "半分クリア", icon: "🏅", need: -1 },
-  { id: 5, name: "全部完了!", icon: "🏆", need: -2 },
+  { id: 1, name: "First Step", icon: "*", need: 1 },
+  { id: 2, name: "5 Tasks", icon: "**", need: 5 },
+  { id: 3, name: "10 Tasks", icon: "***", need: 10 },
+  { id: 4, name: "Halfway", icon: "****", need: -1 },
+  { id: 5, name: "Complete", icon: "*****", need: -2 },
 ];
 const USER_ID = "default_user";
 const DECORATIONS = ["🌳", "🌺", "🦋", "🌻", "🍂", "🌸"];
